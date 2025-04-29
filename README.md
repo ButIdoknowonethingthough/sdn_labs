@@ -8,7 +8,7 @@
 2. Клонируйте репозиторий:
    ```bash
    git clone https://github.com/ButIdoknowonethingthough/sdn_labs.git
-   cd vagrant-vm-template
+   cd sdn_labs
    ```
 3. Запустите виртуальную машину:
    ```bash
