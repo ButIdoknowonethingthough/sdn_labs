@@ -4,7 +4,7 @@
 
 ## Как использовать
 
-1. Установите [Vagrant]([https://www.vagrantup.com/](https://drive.google.com/file/d/135jOX1ZB2_PfssNw6KiVQj-vvbXKZOR1/view?usp=sharing))и [VirtualBox](https://www.virtualbox.org/).
+1. Установите [Vagrant]([https://www.vagrantup.com/](https://drive.google.com/file/d/135jOX1ZB2_PfssNw6KiVQj-vvbXKZOR1/view?usp=sharing) и [VirtualBox](https://www.virtualbox.org/).
 2. Клонируйте репозиторий:
    ```bash
    git clone https://github.com/ButIdoknowonethingthough/sdn_labs.git
