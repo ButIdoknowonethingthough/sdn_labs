@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление SDN-контроллерами и Mininet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #1356e7 0%, #0f0f77 50%, #313335 100%);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .code-block {
+            background-color: #1e293b;
+            color: #f8fafc;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            font-family: monospace;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body class="font-sans bg-gray-50">
+    <!-- Основной контент -->
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">Управление SDN-контроллерами и Mininet</h1>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Выбор виртуальной машины</h2>
+            <div class="flex space-x-4 mb-6">
+                <div class="flex-1">
+                    <label for="vm_choice" class="block text-sm font-medium text-gray-700 mb-2">Виртуальная машина:</label>
+                    <select id="vm_choice" name="vm_choice" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                        <option value="VM1">VM1 (Контроллеры)</option>
+                        <option value="VM2">VM2 (Mininet)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Controller Control -->
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-800 mb-3">Управление контроллерами</h3>
+                    <div class="mb-4">
+                        <label for="controller_type" class="block text-sm font-medium text-gray-700 mb-2">Контроллер:</label>
+                        <select id="controller_type" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                            <option value="Opendaylight">OpenDaylight</option>
+                            <option value="ONOS">ONOS</option>
+                            <option value="Ryu">Ryu</option>
+                        </select>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button onclick="startController()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition">
+                            <i class="fas fa-play mr-2"></i>Запустить
+                        </button>
+                        <button onclick="stopController()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition">
+                            <i class="fas fa-stop mr-2"></i>Остановить
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Mininet Control -->
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-800 mb-3">Управление Mininet</h3>
+                    <div class="mb-4">
+                        <label for="controller_ip" class="block text-sm font-medium text-gray-700 mb-1">IP контроллера:</label>
+                        <input type="text" id="controller_ip" value="192.168.56.10" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div class="mb-4">
+                        <label for="controller_port" class="block text-sm font-medium text-gray-700 mb-1">Порт контроллера:</label>
+                        <input type="text" id="controller_port" value="6633" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div class="flex flex-col space-y-3">
+                        <select id="mininet_command" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                            <option value="Create Simple Topology">Создать простую топологию</option>
+                            <option value="Ping All">Проверить соединение (pingall)</option>
+                            <option value="Test Connectivity">Тест пропускной способности</option>
+                            <option value="Start CLI">Запустить интерактивную консоль</option>
+                            <option value="Clean Mininet">Очистить Mininet</option>
+                        </select>
+                        <button onclick="runMininetCommand()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+                            <i class="fas fa-terminal mr-2"></i>Выполнить команду
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Результаты выполнения -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Результаты выполнения</h2>
+            <div class="bg-gray-100 p-4 rounded border border-gray-300">
+                <pre id="output" class="whitespace-pre-wrap text-gray-800">Здесь будут отображаться результаты выполнения команд...</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function startController() {
+            const vmChoice = document.getElementById('vm_choice').value;
+            const controllerType = document.getElementById('controller_type').value;
+            const output = document.getElementById('output');
+            
+            output.textContent = `Выполняется запуск ${controllerType}...`;
+            
+            try {
+                const response = await fetch('/start_controller', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `vm_choice=${encodeURIComponent(vmChoice)}&controller_type=${encodeURIComponent(controllerType)}`
+                });
+                
+                const result = await response.text();
+                output.textContent = result;
+            } catch (error) {
+                output.textContent = `Ошибка: ${error.message}`;
+            }
+        }
+
+        async function stopController() {
+            const vmChoice = document.getElementById('vm_choice').value;
+            const controllerType = document.getElementById('controller_type').value;
+            const output = document.getElementById('output');
+            
+            output.textContent = `Выполняется остановка ${controllerType}...`;
+            
+            try {
+                const response = await fetch('/stop_controller', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `vm_choice=${encodeURIComponent(vmChoice)}&controller_type=${encodeURIComponent(controllerType)}`
+                });
+                
+                const result = await response.text();
+                output.textContent = result;
+            } catch (error) {
+                output.textContent = `Ошибка: ${error.message}`;
+            }
+        }
+
+        async function runMininetCommand() {
+            const vmChoice = document.getElementById('vm_choice').value;
+            const command = document.getElementById('mininet_command').value;
+            const controllerIp = document.getElementById('controller_ip').value;
+            const controllerPort = document.getElementById('controller_port').value;
+            const output = document.getElementById('output');
+            
+            output.textContent = `Выполняется команда Mininet: ${command}...`;
+            
+            try {
+                const response = await fetch('/run_mininet', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `vm_choice=${encodeURIComponent(vmChoice)}&command_name=${encodeURIComponent(command)}&controller_ip=${encodeURIComponent(controllerIp)}&controller_port=${encodeURIComponent(controllerPort)}`
+                });
+                
+                const result = await response.text();
+                output.textContent = result;
+            } catch (error) {
+                output.textContent = `Ошибка: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
