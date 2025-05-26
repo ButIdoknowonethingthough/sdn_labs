@@ -20,6 +20,12 @@
    vagrant ssh "mininet-host"
    ```
 
+5. Для повторного запуска используйте:
+   ```bash
+   vagrant up --no-provision"
+   
+   ```
+
 ## Дополнительные команды
 - Остановить VM: `vagrant halt`
 - Удалить VM: `vagrant destroy`
