@@ -22,7 +22,7 @@
 
 5. Для повторного запуска используйте:
    ```bash
-   vagrant up --no-provision"
+   vagrant up --no-provision
    
    ```
 
