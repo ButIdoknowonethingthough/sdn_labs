@@ -4,6 +4,8 @@
 Vagrant.configure("2") do |config|
   config.vm.define "sdn-controller" do |controller|
     controller.vm.box = "ubuntu/jammy64"
+    controller.ssh.forward_x11 = true
+    controller.ssh.forward_agent = true
     controller.vm.hostname = "sdn-controller"
     controller.vm.network "private_network", ip: "192.168.56.10"
     
@@ -17,6 +19,8 @@ Vagrant.configure("2") do |config|
   
   config.vm.define "mininet-host" do |mininet|
     mininet.vm.box = "ubuntu/jammy64"
+    mininet.ssh.forward_x11 = true
+    mininet.ssh.forward_agent = true
     mininet.vm.hostname = "mininet-host"
     mininet.vm.network "private_network", ip: "192.168.56.20"
     
