@@ -40,7 +40,7 @@ fi
 
 # 7. Дополнительные настройки (опционально)
 echo "=== Установка дополнительных компонентов (Open vSwitch, Wireshark) ==="
-sudo apt install -y openvswitch-switch wireshark
+sudo apt install -y openvswitch-switch wireshark ttyd
 
 # 8. Завершение
 echo "=== Установка завершена ==="
