@@ -294,3 +294,40 @@ async def execute_command(request: CommandRequest):  # ← Используем 
             "error": e.stderr
         }
 
+
+@app.post("/start_ttyd")
+async def start_ttyd(
+    port: int = Form(8080, description="Порт для ttyd (по умолчанию 8080"),
+    command: str = Form("bash", description="Команда для запуска (по умолчанию bash)"),
+):
+    """
+    Запускает ttyd (веб-терминал) на VM2 и возвращает URL для доступа.
+    """
+    try:
+        # 1. Убиваем процесс, если уже занят порт
+        kill_cmd = f"sudo pkill -f 'ttyd.*{port}' || true"
+        await ssh_command(vm2_ip, vm2_user, private_key_vm2_str, kill_cmd)
+
+        # 2. Запускаем ttyd в фоне (с nohup)
+        start_cmd = f"nohup ttyd -p {port} {command} > /dev/null 2>&1 &"
+        result = await ssh_command(vm2_ip, vm2_user, private_key_vm2_str, start_cmd)
+
+        # 3. Проверяем, что процесс запустился
+        check_cmd = f"pgrep -f 'ttyd.*{port}'"
+        await asyncio.sleep(1)  # Даем время на запуск
+        pid = await ssh_command(vm2_ip, vm2_user, private_key_vm2_str, check_cmd)
+
+        if not pid.strip():
+            raise HTTPException(status_code=500, detail="Не удалось запустить ttyd")
+
+        return {
+            "success": True,
+            "url": f"http://{vm2_ip}:{port}",
+            "message": f"ttyd запущен на порту {port}. Откройте URL в браузере."
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при запуске ttyd: {str(e)}"
+        )
