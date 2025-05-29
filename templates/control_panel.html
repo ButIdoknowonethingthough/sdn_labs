@@ -1,41 +1,98 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Управление SDN-контроллерами, Mininet и Scapy</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/1.3.5/tailwind.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        .controller-frame {
-            width: 100%;
-            height: 400px;
-            border: 1px solid #ccc;
-            border-radius: 0.5rem;
-            margin-top: 1rem;
-        }
-        @media (min-width: 768px) {
-            .controller-frame {
-                height: 600px;
+    <title>SDN LABS | Управление контроллерами</title>
+    <link rel="icon" type="image/x-icon" href="static/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#121212',
+                        darker: '#0a0a0a',
+                        darklight: '#1e1e1e',
+                    }
+                }
             }
         }
-        .controller-tabs {
-            margin-top: 1rem;
-            overflow-x: auto;
-            white-space: nowrap;
-            -webkit-overflow-scrolling: touch;
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@300;400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #ffffff;
+            color: #000000;
+            overflow-x: hidden;
+            transition: all 0.3s ease;
         }
-        .controller-tab {
-            padding: 0.5rem 1rem;
-            background: #e5e7eb;
-            border-radius: 0.5rem 0.5rem 0 0;
-            margin-right: 0.5rem;
-            cursor: pointer;
-            display: inline-block;
+        body.dark {
+            background-color: #121212;
+            color: #e5e5e5;
         }
-        .controller-tab.active {
-            background: #3b82f6;
-            color: white;
+        .dark .dark-bg {
+            background-color: #1e1e1e;
+            border-color: #333;
+        }
+        .dark .darker-bg {
+            background-color: #0a0a0a;
+        }
+        .mono {
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        .nav-link {
+            position: relative;
+        }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 1px;
+            bottom: -2px;
+            left: 0;
+            background-color: currentColor;
+            transition: width 0.3s ease;
+        }
+        .nav-link:hover::after {
+            width: 100%;
+        }
+        .controller-card {
+            transition: all 0.3s ease;
+            border: 1px solid #e5e5e5;
+        }
+        .dark .controller-card {
+            border-color: #333;
+        }
+        .controller-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .dark .controller-card:hover {
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .controller-frame {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #e5e5e5;
+            border-radius: 0.5rem;
+        }
+        .dark .controller-frame {
+            border-color: #333;
         }
         .loading-spinner {
             animation: spin 1s linear infinite;
@@ -44,23 +101,15 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        #scapy-editor {
-            width: 100%;
-            height: 200px;
-            font-family: monospace;
-            border: 1px solid #ccc;
-            border-radius: 0.25rem;
-            padding: 0.5rem;
+        .example-button {
+            transition: all 0.2s ease;
         }
-        @media (min-width: 768px) {
-            #scapy-editor {
-                height: 300px;
-            }
+        .example-button:hover {
+            transform: translateY(-1px);
         }
         .file-upload {
             position: relative;
             overflow: hidden;
-            display: inline-block;
         }
         .file-upload-input {
             position: absolute;
@@ -71,557 +120,807 @@
             height: 100%;
             cursor: pointer;
         }
-        .mobile-collapse {
-            display: block;
-        }
-        @media (max-width: 767px) {
-            .mobile-collapse {
-                display: none;
-            }
-        }
     </style>
 </head>
-<body class="font-sans bg-gray-50">
-    <div class="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
-        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-4 sm:mb-6">Управление SDN-контроллерами, Mininet и Scapy</h1>
-        
-        <div class="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 sm:mb-8">
-            <h2 class="text-lg sm:text-xl font-semibold text-gray-700 mb-3 sm:mb-4">Выбор виртуальной машины</h2>
-            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mb-4 sm:mb-6">
-                <div class="flex-1">
-                    <label for="vm_choice" class="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Виртуальная машина:</label>
-                    <select id="vm_choice" name="vm_choice" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+<body class="dark:bg-dark dark:text-gray-200">
+<!-- Navigation -->
+<nav class="fixed w-full z-50 py-4 px-6 bg-white bg-opacity-90 dark:bg-black dark:bg-opacity-90 shadow-md">
+  <div class="max-w-7xl mx-auto flex justify-between items-center">
+    <!-- Логотип -->
+    <div class="flex items-center space-x-2">
+      <i class="fas fa-network-wired text-xl dark:text-white"></i>
+      <a href="/" class="text-xl font-bold text-gray-900 dark:text-white">SDN LABS</a>
+    </div>
+
+    <!-- Меню -->
+    <div class="hidden md:flex items-center space-x-6">
+      
+
+      <!-- Тема -->
+      <button id="darkModeToggle" class="w-10 h-5 rounded-full bg-gray-300 dark:bg-gray-600 relative focus:outline-none transition duration-300">
+        <div class="absolute left-0 top-0 w-5 h-5 bg-white dark:bg-gray-300 rounded-full shadow transition transform"></div>
+      </button>
+    </div>
+
+    <!-- Мобильное меню: кнопка -->
+    <div class="md:hidden flex items-center space-x-3">
+      <button id="darkModeToggleMobile" class="w-10 h-5 rounded-full bg-gray-300 dark:bg-gray-600 relative focus:outline-none transition duration-300">
+        <div class="absolute left-0 top-0 w-5 h-5 bg-white dark:bg-gray-300 rounded-full shadow transition transform"></div>
+      </button>
+      <button id="mobile-menu-button" class="text-gray-800 dark:text-white focus:outline-none">
+        <i class="fas fa-bars text-2xl"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Мобильное меню: выпадающее -->
+  <div id="mobile-menu" class="md:hidden bg-white dark:bg-gray-900 py-4 px-4 space-y-2 transform transition-all origin-top scale-y-0 opacity-0 pointer-events-none">
+    <a href="/#home" class="block text-gray-800 dark:text-white hover:text-blue-500">Главная</a>
+    <a href="/#labs" class="block text-gray-800 dark:text-white hover:text-blue-500">Лабораторные</a>
+    <a href="/#theory" class="block text-gray-800 dark:text-white hover:text-blue-500">Теория</a>
+    <a href="/#tools" class="block text-gray-800 dark:text-white hover:text-blue-500">Инструменты</a>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<div class="pt-24 pb-12 px-6 sm:px-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold mb-4 md:mb-0 dark:text-white">Управление SDN-контроллерами</h1>
+            <div class="mono text-sm tracking-wider text-gray-600 dark:text-gray-400">ПАНЕЛЬ УПРАВЛЕНИЯ</div>
+        </div>
+
+        <div class="controller-card dark-bg rounded-lg p-6">
+        <div class="controller-card dark-bg rounded-lg p-6">
+    <div class="flex items-center mb-4">
+        <div class="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mr-3">
+            <i class="fas fa-server text-gray-700 dark:text-gray-300"></i>
+        </div>
+        <h3 class="text-xl font-bold dark:text-white">Управление Vagrant</h3>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mb-4">
+        <button onclick="sendCommand('up mininet-host --no-provision')" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">Vagrant Up</button>
+        <button onclick="sendCommand('halt')" class="bg-yellow-600 hover:bg-yellow-700 text-white py-2 px-4 rounded">Vagrant Halt</button>
+        <button onclick="sendCommand('status')" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">Vagrant Status</button>
+        <button onclick="sendCommand('destroy -f')" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded">Vagrant Destroy</button>
+    </div>
+
+    <div class="mb-4">
+        <label for="customCmd" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Произвольная команда:</label>
+        <div class="flex">
+            <input type="text" id="customCmd" placeholder="Введите Vagrant-команду" class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-l-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white">
+            <button onclick="sendCustomCommand()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md">Выполнить</button>
+        </div>
+    </div>
+
+    <div class="mb-2">
+        <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Результат:</h4>
+        <div id="output" class="bg-gray-100 dark:bg-zinc-600 text-sm p-3 rounded text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+            Нажмите кнопку для выполнения команды...
+        </div>
+    </div>
+</div>
+
+        <!-- VM Selection -->
+        <div class="bg-white dark:bg-darklight rounded-lg shadow-md p-6 mb-8 dark-bg">
+            <h2 class="text-xl font-semibold mb-4 dark:text-white">Выбор виртуальной машины</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="vm_choice" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Виртуальная машина:</label>
+                    <select id="vm_choice" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-darklight dark:text-white">
                         <option value="VM1">VM1 (Контроллеры)</option>
                         <option value="VM2">VM2 (Mininet и Scapy)</option>
                     </select>
                 </div>
             </div>
-
-            <div class="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <!-- Controller Control -->
-                <div class="bg-gray-50 p-3 sm:p-4 rounded-lg border border-gray-200">
-                    <h3 class="text-base sm:text-lg font-medium text-gray-800 mb-2 sm:mb-3">Управление контроллерами</h3>
-                    <div class="mb-3 sm:mb-4">
-                        <label for="controller_type" class="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Контроллер:</label>
-                        <select id="controller_type" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                            <option value="Opendaylight">OpenDaylight</option>
-                            <option value="ONOS">ONOS</option>
-                            <option value="Ryu">Ryu</option>
-                        </select>
+        </div>
+        
+        <!-- Controller Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Controller Control -->
+            <div class="controller-card dark-bg rounded-lg p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-server text-gray-700 dark:text-gray-300"></i>
                     </div>
-                    <div class="flex space-x-2 sm:space-x-3">
-                        <button onclick="startController()" class="flex-1 px-3 sm:px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition text-sm sm:text-base">
-                            <i class="fas fa-play mr-1 sm:mr-2"></i><span class="mobile-collapse">Запустить</span>
-                        </button>
-                        <button onclick="stopController()" class="flex-1 px-3 sm:px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition text-sm sm:text-base">
-                            <i class="fas fa-stop mr-1 sm:mr-2"></i><span class="mobile-collapse">Остановить</span>
-                        </button>
+                    <h3 class="text-xl font-bold dark:text-white">Управление контроллерами</h3>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="controller_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Контроллер:</label>
+                    <select id="controller_type" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-darklight dark:text-white">
+                        <option value="Opendaylight">OpenDaylight</option>
+                        <option value="ONOS">ONOS</option>
+                        <option value="Ryu">Ryu</option>
+                    </select>
+                </div>
+                
+                <div class="flex space-x-3">
+                    <button onclick="startController()" class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md flex items-center justify-center transition">
+                        <i class="fas fa-play mr-2"></i> Запустить
+                    </button>
+                    <button onclick="stopController()" class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md flex items-center justify-center transition">
+                        <i class="fas fa-stop mr-2"></i> Остановить
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mininet Control -->
+            <div class="controller-card dark-bg rounded-lg p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-network-wired text-gray-700 dark:text-gray-300"></i>
+                    </div>
+                    <h3 class="text-xl font-bold dark:text-white">Управление Mininet</h3>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Команда Mininet:</label>
+                    <textarea id="mininet_command" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-darklight dark:text-white" rows="4" placeholder="sudo mn --topo linear,3 --mac --controller=remote,ip=192.168.56.10,port=6633 --switch ovs,protocols=OpenFlow13"></textarea>
+                </div>
+                
+                <div class="flex space-x-3 mb-3">
+                    <button onclick="runMininetCommand()" class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md flex items-center justify-center transition">
+                        <i class="fas fa-terminal mr-2"></i> Выполнить
+                    </button>
+                    <div class="file-upload flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white rounded-md flex items-center justify-center transition">
+                        <i class="fas fa-upload mr-2"></i> Загрузить
+                        <input type="file" id="mininet_file" class="file-upload-input" onchange="uploadMininetFile()">
                     </div>
                 </div>
+                
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="loadMininetExample('simple')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-project-diagram mr-1.5"></i> Простая топология
+                    </button>
+                    <button onclick="loadMininetExample('pingall')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-network-wired mr-1.5"></i> Остановка Mn
+                    </button>
+                    <button onclick="loadMininetExample('iperf')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-tachometer-alt mr-1.5"></i> Тест скорости
+                    </button>
+                    <button onclick="loadMininetExample('cli')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-terminal mr-1.5"></i> Интерактивная консоль
+                    </button>
+                </div>
+            </div>
 
-                <!-- Mininet Control -->
-                <div class="bg-gray-50 p-3 sm:p-4 rounded-lg border border-gray-200">
-                    <h3 class="text-base sm:text-lg font-medium text-gray-800 mb-2 sm:mb-3">Управление Mininet</h3>
-                    <div class="mb-2 sm:mb-3">
-                        <label for="controller_ip" class="block text-sm font-medium text-gray-700 mb-1">IP контроллера:</label>
-                        <input type="text" id="controller_ip" value="192.168.56.10" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            <!-- Scapy Control -->
+            <div class="controller-card dark-bg rounded-lg p-6">
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-code text-gray-700 dark:text-gray-300"></i>
                     </div>
-                    <div class="mb-3 sm:mb-4">
-                        <label for="controller_port" class="block text-sm font-medium text-gray-700 mb-1">Порт контроллера:</label>
-                        <input type="text" id="controller_port" value="6633" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-                    </div>
-                    <div class="flex flex-col space-y-2 sm:space-y-3">
-                        <select id="mininet_command" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base">
-                            <option value="Create Simple Topology">Создать простую топологию</option>
-                            <option value="Ping All">Проверить соединение (pingall)</option>
-                            <option value="Test Connectivity">Тест пропускной способности</option>
-                            <option value="Start CLI">Запустить интерактивную консоль</option>
-                            <option value="Clean Mininet">Очистить Mininet</option>
-                        </select>
-                        <button onclick="runMininetCommand()" class="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition text-sm sm:text-base">
-                            <i class="fas fa-terminal mr-1 sm:mr-2"></i><span class="mobile-collapse">Выполнить команду</span>
-                        </button>
+                    <h3 class="text-xl font-bold dark:text-white">Управление Scapy</h3>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Scapy скрипт:</label>
+                    <textarea id="scapy_script" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-darklight dark:text-white" rows="4" placeholder="from scapy.all import *&#10;packet = IP(dst='192.168.1.1')/ICMP()&#10;send(packet)"></textarea>
+                </div>
+                
+                <div class="flex space-x-3 mb-3">
+                    <button onclick="runScapyScript()" class="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md flex items-center justify-center transition">
+                        <i class="fas fa-code mr-2"></i> Выполнить
+                    </button>
+                    <div class="file-upload flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white rounded-md flex items-center justify-center transition">
+                        <i class="fas fa-upload mr-2"></i> Загрузить
+                        <input type="file" id="scapy_file" class="file-upload-input" onchange="uploadScapyFile()">
                     </div>
                 </div>
-
-                <!-- Scapy Control -->
-                <div class="bg-gray-50 p-3 sm:p-4 rounded-lg border border-gray-200">
-                    <h3 class="text-base sm:text-lg font-medium text-gray-800 mb-2 sm:mb-3">Управление Scapy</h3>
-                    <div class="mb-3 sm:mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">Scapy скрипт:</label>
-                        <textarea id="scapy_script" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" rows="4" placeholder="from scapy.all import *&#10;packet = IP(dst='192.168.1.1')/ICMP()&#10;send(packet)"></textarea>
-                    </div>
-                    <div class="flex flex-col space-y-2">
-                        <div class="flex space-x-2">
-                            <button onclick="runScapyScript()" class="flex-1 px-3 sm:px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition text-sm sm:text-base">
-                                <i class="fas fa-code mr-1 sm:mr-2"></i><span class="mobile-collapse">Выполнить</span>
-                            </button>
-                            <div class="file-upload flex-1 px-3 sm:px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 transition text-center text-sm sm:text-base">
-                                <i class="fas fa-upload mr-1 sm:mr-2"></i><span class="mobile-collapse">Загрузить</span>
-                                <input type="file" id="scapy_file" class="file-upload-input" onchange="uploadScapyFile()">
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <button onclick="loadScapyExample('ping')" class="px-2 sm:px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-xs sm:text-sm">
-                                <i class="fas fa-wifi mr-1"></i>Ping
-                            </button>
-                            <button onclick="loadScapyExample('arp')" class="px-2 sm:px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-xs sm:text-sm">
-                                <i class="fas fa-network-wired mr-1"></i>ARP
-                            </button>
-                            <button onclick="loadScapyExample('portscan')" class="px-2 sm:px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-xs sm:text-sm">
-                                <i class="fas fa-search mr-1"></i>Port Scan
-                            </button>
-                            <button onclick="loadScapyExample('dhcp')" class="px-2 sm:px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-xs sm:text-sm">
-                                <i class="fas fa-address-card mr-1"></i>DHCP
-                            </button>
-                        </div>
-                    </div>
+                
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="loadScapyExample('ping')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-wifi mr-1.5"></i> Ping
+                    </button>
+                    <button onclick="loadScapyExample('arp')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-network-wired mr-1.5"></i> ARP
+                    </button>
+                    <button onclick="loadScapyExample('flowtable_dos')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-search mr-1.5"></i> Port Scan
+                    </button>
+                    <button onclick="loadScapyExample('dhcp')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-address-card mr-1.5"></i> DHCP
+                    </button>
+                </div>
+                
+                <div class="mt-4">
+                    <label for="host_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Выберите хост Mininet:</label>
+                    <select id="host_name" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-darklight dark:text-white">
+                        <option value="h1">h1</option>
+                        <option value="h2">h2</option>
+                        <option value="h3">h3</option>
+                        <option value="h4">h4</option>
+                    </select>
                 </div>
             </div>
         </div>
 
-        <!-- Секция с веб-интерфейсами контроллеров -->
-        <div id="controller-section" class="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-6 sm:mb-8" style="display: none;">
-            <h2 class="text-lg sm:text-xl font-semibold text-gray-700 mb-3 sm:mb-4">Веб-интерфейсы контроллеров</h2>
-            <div class="flex items-center mb-3 sm:mb-4">
-                <div id="controller-tabs" class="controller-tabs flex flex-nowrap gap-2"></div>
-                <button id="refresh-btn" class="ml-auto px-2 sm:px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 text-sm" onclick="refreshCurrentTab()">
-                    <i class="fas fa-sync-alt"></i>
+        <!-- Mininet Session Commands -->
+        <div class="bg-white dark:bg-darklight rounded-lg shadow-md p-6 mb-8 dark-bg">
+            <h2 class="text-xl font-semibold mb-4 dark:text-white">Команды в Mininet сессию</h2>
+            
+            <div class="mb-4">
+                <label for="mininet_command_input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Команда для Mininet (например, pingall, h1 ping h2):</label>
+                <textarea id="mininet_command_input" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-darklight dark:text-white" rows="3" placeholder="Введите команду для выполнения в Mininet сессии"></textarea>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-4 mb-4">
+                <div class="flex items-center">
+                    <input type="checkbox" id="wait_for_output" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded dark:bg-darklight">
+                    <label for="wait_for_output" class="ml-2 block text-sm text-gray-700 dark:text-gray-300">Ожидать вывод</label>
+                </div>
+                <div class="flex items-center">
+                    <label for="timeout" class="block text-sm text-gray-700 dark:text-gray-300 mr-2">Таймаут (сек):</label>
+                    <input type="number" id="timeout" value="10" min="1" max="60" class="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-darklight dark:text-white">
+                </div>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-3">
+                <button onclick="sendMininetCommand()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md flex items-center transition">
+                    <i class="fas fa-paper-plane mr-2"></i> Отправить команду
+                </button>
+                
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="loadMininetSessionExample('pingall')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-network-wired mr-1.5"></i> pingall
+                    </button>
+                    <button onclick="loadMininetSessionExample('h1_ping_h2')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-exchange-alt mr-1.5"></i> h1 ping h2
+                    </button>
+                    <button onclick="loadMininetSessionExample('links')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-link mr-1.5"></i> links
+                    </button>
+                    <button onclick="loadMininetSessionExample('nodes')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
+                        <i class="fas fa-sitemap mr-1.5"></i> nodes
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controller Interfaces -->
+        <div id="controller-section" class="bg-white dark:bg-darklight rounded-lg shadow-md p-6 mb-8 dark-bg" style="display: none;">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold dark:text-white">Веб-интерфейсы контроллеров</h2>
+                <button id="refresh-btn" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md text-sm flex items-center transition" onclick="refreshCurrentTab()">
+                    <i class="fas fa-sync-alt mr-1.5"></i> Обновить
                 </button>
             </div>
+            
+            <div id="controller-tabs" class="flex flex-nowrap gap-2 mb-4 overflow-x-auto pb-2"></div>
+            
             <div id="controller-frames" class="relative">
-                <div id="loading-overlay" class="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center hidden">
+                <div id="loading-overlay" class="absolute inset-0 bg-white dark:bg-darklight bg-opacity-90 flex items-center justify-center hidden">
                     <div class="text-center">
-                        <i class="fas fa-spinner loading-spinner text-3xl sm:text-4xl text-blue-500 mb-2"></i>
-                        <p class="text-sm sm:text-base">Загрузка интерфейса...</p>
+                        <i class="fas fa-spinner loading-spinner text-3xl text-blue-500 mb-3"></i>
+                        <p class="text-sm dark:text-gray-300">Загрузка интерфейса...</p>
                     </div>
                 </div>
-                <div id="no-controller" class="text-center py-8 sm:py-10 text-gray-500">
-                    <i class="fas fa-network-wired text-3xl sm:text-4xl mb-2"></i>
-                    <p class="text-sm sm:text-base">Нет активных контроллеров. Запустите контроллер, чтобы увидеть его интерфейс.</p>
+                
+                <div id="no-controller" class="text-center py-10">
+                    <i class="fas fa-network-wired text-4xl text-gray-400 dark:text-gray-500 mb-3"></i>
+                    <p class="text-gray-500 dark:text-gray-400">Нет активных контроллеров. Запустите контроллер, чтобы увидеть его интерфейс.</p>
                 </div>
             </div>
         </div>
 
-        <!-- Результаты выполнения -->
-        <div class="bg-white rounded-lg shadow-md p-4 sm:p-6">
-            <h2 class="text-lg sm:text-xl font-semibold text-gray-700 mb-3 sm:mb-4">Результаты выполнения</h2>
-            <div class="bg-gray-100 p-3 sm:p-4 rounded border border-gray-300">
-                <pre id="output" class="whitespace-pre-wrap text-gray-800 text-sm sm:text-base">Готов к работе. Выберите действие...</pre>
+        <!-- Output Section -->
+        <div class="bg-white dark:bg-darklight rounded-lg shadow-md p-6 dark-bg">
+            <h2 class="text-xl font-semibold mb-4 dark:text-white">Результаты выполнения</h2>
+            <div class="bg-gray-100 dark:bg-gray-800 p-4 rounded-md">
+                <pre id="output" class="whitespace-pre-wrap text-gray-800 dark:text-gray-300 text-sm font-mono">Готов к работе. Выберите действие...</pre>
             </div>
         </div>
     </div>
+</div>
 
-    <script>
-        // Конфигурация контроллеров
-        const controllerConfig = {
-            "Opendaylight": { 
-                url: "http://192.168.56.10:8181/index.html", 
-                vm: "VM1",
-                name: "OpenDaylight",
-                icon: "fas fa-network-wired"
-            },
-            "ONOS": { 
-                url: "http://192.168.56.10:8181/onos/ui", 
-                vm: "VM1",
-                name: "ONOS",
-                icon: "fas fa-server"
-            },
-            "Ryu": { 
-                url: "http://192.168.56.10:8080", 
-                vm: "VM1",
-                name: "Ryu",
-                icon: "fas fa-project-diagram"
+<!-- Footer -->
+
+
+<script>
+    // Конфигурация контроллеров
+    const controllerConfig = {
+        "Opendaylight": { 
+            url: "http://192.168.56.10:8181/index.html", 
+            vm: "VM1",
+            name: "OpenDaylight",
+            icon: "fas fa-network-wired"
+        },
+        "ONOS": { 
+            url: "http://192.168.56.10:8181/onos/ui?noautofocus", 
+            vm: "VM1",
+            name: "ONOS",
+            icon: "fas fa-server"
+        },
+        "Ryu": { 
+            url: "http://192.168.56.10:8080", 
+            vm: "VM1",
+            name: "Ryu",
+            icon: "fas fa-project-diagram"
+        }
+    };
+
+    // Примеры Scapy скриптов
+    const scapyExamples = {
+        ping: `from scapy.all import *\n\n# Простой ping\npacket = IP(dst="192.168.1.1")/ICMP()\nresponse = sr1(packet, timeout=2)\nif response:\n    print("Получен ответ от", response.src)\nelse:\n    print("Нет ответа")`,
+        
+        arp: `from scapy.all import *\n\n# ARP запрос\narp_request = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(pdst="192.168.1.0/24")\nans, unans = srp(arp_request, timeout=2)\nprint("Доступные устройства:")\nfor sent, received in ans:\n    print(f"IP: {received.psrc} - MAC: {received.hwsrc}")`,
+        
+        flowtable_dos: `from scapy.all import *\nimport random\n\ndef generate_random_ip():\n    return "10.0.0." + str(random.randint(1, 254))\n\ndef flood_flows(target_ip, count=1000):\n    for i in range(count):\n        src_ip = generate_random_ip()\n        pkt = Ether()/IP(src=src_ip, dst=target_ip)/TCP(sport=random.randint(1024,65535), dport=80)\n        sendp(pkt, iface="eth0", verbose=0)\n        if i % 100 == 0:\n            print(f"Sent {i} packets")\n\nif __name__ == "__main__":\n    flood_flows("10.0.0.3", 5000)`,
+        
+        dhcp: `from scapy.all import *\n\n# DHCP discovery\nconf.checkIPaddr = False\ndhcp_discover = Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67)/BOOTP(chaddr="001122334455")/DHCP(options=[("message-type","discover"),"end"])\nans, unans = srp(dhcp_discover, multi=True, timeout=5)\nfor packet in ans:\n    print(packet[1][DHCP].options)`
+    };
+
+    // Примеры команд Mininet
+    const mininetExamples = {
+        simple: `sudo mn --topo linear,3 --mac --controller=remote,ip=192.168.56.10,port=6633 --switch ovs,protocols=OpenFlow13`,
+        pingall: `sudo mn -c`,
+        iperf: `sudo mn --controller=remote,ip=192.168.56.10 --topo=linear,4 --test iperf`,
+        cli: `sudo mn --controller=remote,ip=192.168.56.10 --topo=tree,depth=2,fanout=3`
+    };
+
+    // Примеры команд для Mininet сессии
+    const mininetSessionExamples = {
+        pingall: "pingall",
+        h1_ping_h2: "h1 ping h2",
+        links: "links",
+        nodes: "nodes",
+        dump: "dump",
+        net: "net",
+        h1_ifconfig: "h1 ifconfig",
+        h1_arp: "h1 arp -a"
+    };
+
+    // Текущие активные контроллеры
+    const activeControllers = new Map();
+    let currentActiveTab = null;
+
+    // Общие функции для работы с UI
+    function showLoading(message = "Выполнение команды...") {
+        const output = document.getElementById('output');
+        output.innerHTML = `<div class="text-blue-500"><i class="fas fa-spinner fa-spin mr-2"></i>${message}</div>`;
+    }
+
+    function showError(message) {
+        const output = document.getElementById('output');
+        output.innerHTML = `<div class="text-red-500"><i class="fas fa-exclamation-circle mr-2"></i>${message}</div>`;
+    }
+
+    function showSuccess(message) {
+        const output = document.getElementById('output');
+        output.innerHTML = `<div class="text-green-500"><i class="fas fa-check-circle mr-2"></i>${message}</div>`;
+    }
+
+    // Отправка команды в Mininet сессию
+    async function sendMininetCommand() {
+        const command = document.getElementById('mininet_command_input').value.trim();
+        const waitForOutput = document.getElementById('wait_for_output').checked;
+        const timeout = document.getElementById('timeout').value;
+        
+        if (!command) {
+            showError("Пожалуйста, введите команду для Mininet");
+            return;
+        }
+        
+        showLoading(`Отправка команды в Mininet: ${command}`);
+        
+        try {
+            // Здесь должна быть реальная отправка команды на сервер
+            // Это примерная реализация
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Пример успешного ответа
+            const successMessage = `Команда "${command}" выполнена успешно.\nПример вывода:\nh1 -> h2 \nh1 -> h3 \nh2 -> h1 \nh2 -> h3 \nh3 -> h1 \nh3 -> h2`;
+            showSuccess(successMessage);
+        } catch (error) {
+            showError(`Ошибка при отправке команды в Mininet: ${error.message}`);
+            console.error('Ошибка:', error);
+        }
+    }
+
+    // Загрузка примера команды для Mininet сессии
+    function loadMininetSessionExample(exampleName) {
+        const example = mininetSessionExamples[exampleName];
+        if (example) {
+            document.getElementById('mininet_command_input').value = example;
+        }
+    }
+
+    // Управление контроллерами
+    async function startController() {
+        const vmChoice = document.getElementById('vm_choice').value;
+        const controllerType = document.getElementById('controller_type').value;
+        
+        showLoading(`Запуск ${controllerType}...`);
+        
+        try {
+            // Здесь должна быть реальная отправка команды на сервер
+            // Это примерная реализация
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Пример успешного ответа
+            const successMessage = `${controllerType} успешно запущен на ${vmChoice}`;
+            showSuccess(successMessage);
+            
+            // Если контроллер должен отображаться на этой VM
+            if (vmChoice === controllerConfig[controllerType]?.vm) {
+                addControllerTab(controllerType);
             }
+        } catch (error) {
+            showError(`Ошибка при запуске контроллера: ${error.message}`);
+            console.error('Ошибка:', error);
+        }
+    }
+
+    async function stopController() {
+        const vmChoice = document.getElementById('vm_choice').value;
+        const controllerType = document.getElementById('controller_type').value;
+        
+        showLoading(`Остановка ${controllerType}...`);
+        
+        try {
+            // Здесь должна быть реальная отправка команды на сервер
+            // Это примерная реализация
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Пример успешного ответа
+            const successMessage = `${controllerType} успешно остановлен`;
+            showSuccess(successMessage);
+            
+            removeControllerTab(controllerType);
+        } catch (error) {
+            showError(`Ошибка при остановке контроллера: ${error.message}`);
+            console.error('Ошибка:', error);
+        }
+    }
+
+    // Управление вкладками контроллеров
+    function addControllerTab(controllerType) {
+        if (activeControllers.has(controllerType)) return;
+        
+        const config = controllerConfig[controllerType];
+        if (!config) return;
+        
+        const tabsContainer = document.getElementById('controller-tabs');
+        const framesContainer = document.getElementById('controller-frames');
+        const controllerSection = document.getElementById('controller-section');
+        const noControllerMsg = document.getElementById('no-controller');
+        
+        // Скрываем сообщение "нет контроллеров"
+        if (noControllerMsg) noControllerMsg.style.display = 'none';
+        
+        // Создаем вкладку
+        const tab = document.createElement('button');
+        tab.className = 'px-4 py-2 bg-blue-600 text-white rounded-md flex items-center text-sm';
+        tab.innerHTML = `<i class="${config.icon} mr-2"></i>${config.name}`;
+        tab.dataset.controllerType = controllerType;
+        tab.onclick = () => switchControllerTab(controllerType);
+        
+        // Создаем фрейм
+        const frameWrapper = document.createElement('div');
+        frameWrapper.className = 'controller-frame-wrapper relative';
+        frameWrapper.style.display = 'none';
+        
+        const frame = document.createElement('iframe');
+        frame.id = `frame-${controllerType}`;
+        frame.className = 'controller-frame';
+        frame.src = config.url;
+        frame.loading = "lazy";
+        
+        // Добавляем обработчик загрузки фрейма
+        frame.onload = () => {
+            document.getElementById('loading-overlay').classList.add('hidden');
         };
-
-        // Примеры Scapy скриптов
-        const scapyExamples = {
-            ping: `from scapy.all import *
-
-# ===== Настройки =====
-src_ip = ""        # IP хоста, с которого отправляем
-dst_ip = ""        # IP целевого хоста
-interface = ""      # интерфейс, через который отправляем
-# ======================
-
-print(f"[+] Выполняем ARP-запрос для {dst_ip}...")
-
-# Формируем ARP-запрос
-arp_request = ARP(pdst=dst_ip)
-broadcast = Ether(dst="ff:ff:ff:ff:ff:ff")
-arp_result = srp(broadcast / arp_request, iface=interface, timeout=2, verbose=False)
-
-# Проверяем, есть ли ответ
-if len(arp_result[0]) == 0:
-    print(f"[-] Не удалось получить MAC-адрес для {dst_ip}")
-    exit(1)
-
-target_mac = arp_result[0][0][1].hwsrc  # правильное обращение к результату
-print(f"[+] Найден MAC для {dst_ip}: {target_mac}")
-
-# Формируем Ethernet + IP + ICMP пакет
-ether = Ether(src=get_if_hwaddr(interface), dst=target_mac)
-ip = IP(src=src_ip, dst=dst_ip)
-icmp = ICMP()
-
-packet = ether / ip / icmp
-
-print(f"[+] Отправляем ICMP пакет от {src_ip} к {dst_ip}...")
-response = srp1(packet, iface=interface, timeout=2, verbose=False)
-
-if response:
-    print("[+] Получен ответ:")
-    response.show()
-else:
-    print("[-] Нет ответа.")`,
-
-            arp: `from scapy.all import *
-# ARP запрос
-arp_request = Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(pdst="192.168.1.0/24")
-ans, unans = srp(arp_request, timeout=2)
-print("Доступные устройства:")
-for sent, received in ans:
-    print(f"IP: {received.psrc} - MAC: {received.hwsrc}")`,
-
-            portscan: `from scapy.all import *
-# Сканирование TCP портов
-target = "192.168.1.1"
-ports = [22, 80, 443, 3389]
-
-for port in ports:
-    packet = IP(dst=target)/TCP(dport=port, flags="S")
-    response = sr1(packet, timeout=1, verbose=0)
-    if response:
-        if response[TCP].flags == "SA":
-            print(f"Порт {port} открыт")
-        elif response[TCP].flags == "RA":
-            print(f"Порт {port} закрыт")
-    else:
-        print(f"Порт {port} фильтруется или хост недоступен")`,
-
-            dhcp: `from scapy.all import *
-# DHCP discovery
-conf.checkIPaddr = False
-dhcp_discover = Ether(dst="ff:ff:ff:ff:ff:ff")/IP(src="0.0.0.0",dst="255.255.255.255")/UDP(sport=68,dport=67)/BOOTP(chaddr="001122334455")/DHCP(options=[("message-type","discover"),"end"])
-ans, unans = srp(dhcp_discover, multi=True, timeout=5)
-for packet in ans:
-    print(packet[1][DHCP].options)`
-        };
-
-        // Текущие активные контроллеры
-        const activeControllers = new Map();
-        let currentActiveTab = null;
-
-        // Общие функции для работы с UI
-        function showLoading(message = "Выполнение команды...") {
-            const output = document.getElementById('output');
-            output.innerHTML = `<div class="text-blue-600"><i class="fas fa-spinner fa-spin mr-2"></i>${message}</div>`;
+        
+        frameWrapper.appendChild(frame);
+        
+        // Добавляем элементы
+        tabsContainer.appendChild(tab);
+        framesContainer.insertBefore(frameWrapper, framesContainer.firstChild);
+        activeControllers.set(controllerType, frameWrapper);
+        
+        // Показываем секцию
+        if (controllerSection) {
+            controllerSection.style.display = 'block';
         }
+        
+        // Делаем эту вкладку активной
+        switchControllerTab(controllerType);
+        
+        // Показываем индикатор загрузки
+        document.getElementById('loading-overlay').classList.remove('hidden');
+    }
 
-        function showError(message) {
-            const output = document.getElementById('output');
-            output.innerHTML = `<div class="text-red-600"><i class="fas fa-exclamation-circle mr-2"></i>${message}</div>`;
-        }
-
-        function showSuccess(message) {
-            const output = document.getElementById('output');
-            output.innerHTML = `<div class="text-green-600"><i class="fas fa-check-circle mr-2"></i>${message}</div>`;
-        }
-
-        // Управление контроллерами
-        async function startController() {
-            const vmChoice = document.getElementById('vm_choice').value;
-            const controllerType = document.getElementById('controller_type').value;
+    function removeControllerTab(controllerType) {
+        if (!activeControllers.has(controllerType)) return;
+        
+        // Удаляем вкладку
+        const tabToRemove = document.querySelector(`button[data-controller-type="${controllerType}"]`);
+        if (tabToRemove) tabToRemove.remove();
+        
+        // Удаляем фрейм
+        const frameWrapper = activeControllers.get(controllerType);
+        if (frameWrapper) frameWrapper.remove();
+        
+        // Удаляем из активных контроллеров
+        activeControllers.delete(controllerType);
+        
+        // Показываем сообщение "нет контроллеров", если это был последний
+        const noControllerMsg = document.getElementById('no-controller');
+        if (activeControllers.size === 0 && noControllerMsg) {
+            noControllerMsg.style.display = 'block';
             
-            showLoading(`Запуск ${controllerType}...`);
-            
-            try {
-                const formData = new FormData();
-                formData.append('vm_choice', vmChoice);
-                formData.append('controller_type', controllerType);
-                
-                const response = await fetch('/start_controller', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                
-                const result = await response.text();
-                showSuccess(result);
-                
-                // Если контроллер должен отображаться на этой VM
-                if (vmChoice === controllerConfig[controllerType]?.vm) {
-                    addControllerTab(controllerType);
-                }
-            } catch (error) {
-                showError(`Ошибка при запуске контроллера: ${error.message}`);
-                console.error('Ошибка:', error);
-            }
-        }
-
-        async function stopController() {
-            const vmChoice = document.getElementById('vm_choice').value;
-            const controllerType = document.getElementById('controller_type').value;
-            
-            showLoading(`Остановка ${controllerType}...`);
-            
-            try {
-                const formData = new FormData();
-                formData.append('vm_choice', vmChoice);
-                formData.append('controller_type', controllerType);
-                
-                const response = await fetch('/stop_controller', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                
-                const result = await response.text();
-                showSuccess(result);
-                
-                removeControllerTab(controllerType);
-            } catch (error) {
-                showError(`Ошибка при остановке контроллера: ${error.message}`);
-                console.error('Ошибка:', error);
-            }
-        }
-
-        // Управление вкладками контроллеров
-        function addControllerTab(controllerType) {
-            if (activeControllers.has(controllerType)) return;
-            
-            const config = controllerConfig[controllerType];
-            if (!config) return;
-            
-            const tabsContainer = document.getElementById('controller-tabs');
-            const framesContainer = document.getElementById('controller-frames');
+            // Скрываем секцию, если нет активных контроллеров
             const controllerSection = document.getElementById('controller-section');
-            const noControllerMsg = document.getElementById('no-controller');
-            
-            // Скрываем сообщение "нет контроллеров"
-            if (noControllerMsg) noControllerMsg.style.display = 'none';
-            
-            // Создаем вкладку
-            const tab = document.createElement('button');
-            tab.className = 'controller-tab active';
-            tab.innerHTML = `<i class="${config.icon} mr-1 sm:mr-2"></i><span class="mobile-collapse">${config.name}</span>`;
-            tab.dataset.controllerType = controllerType;
-            tab.onclick = () => switchControllerTab(controllerType);
-            
-            // Создаем фрейм
-            const frameWrapper = document.createElement('div');
-            frameWrapper.className = 'controller-frame-wrapper relative';
-            frameWrapper.style.display = 'none';
-            
-            const frame = document.createElement('iframe');
-            frame.id = `frame-${controllerType}`;
-            frame.className = 'controller-frame';
-            frame.src = config.url;
-            frame.loading = "lazy";
-            
-            // Добавляем обработчик загрузки фрейма
-            frame.onload = () => {
-                document.getElementById('loading-overlay').classList.add('hidden');
-            };
-            
-            frameWrapper.appendChild(frame);
-            
-            // Добавляем элементы
-            tabsContainer.appendChild(tab);
-            framesContainer.insertBefore(frameWrapper, framesContainer.firstChild);
-            activeControllers.set(controllerType, frameWrapper);
-            
-            // Показываем секцию
             if (controllerSection) {
-                controllerSection.style.display = 'block';
+                controllerSection.style.display = 'none';
             }
-            
-            // Делаем эту вкладку активной
-            switchControllerTab(controllerType);
-            
-            // Показываем индикатор загрузки
-            document.getElementById('loading-overlay').classList.remove('hidden');
-        }
-
-        function removeControllerTab(controllerType) {
-            if (!activeControllers.has(controllerType)) return;
-            
-            // Удаляем вкладку
-            const tabToRemove = document.querySelector(`.controller-tab[data-controller-type="${controllerType}"]`);
-            if (tabToRemove) tabToRemove.remove();
-            
-            // Удаляем фрейм
-            const frameWrapper = activeControllers.get(controllerType);
-            if (frameWrapper) frameWrapper.remove();
-            
-            // Удаляем из активных контроллеров
-            activeControllers.delete(controllerType);
-            
-            // Показываем сообщение "нет контроллеров", если это был последний
-            const noControllerMsg = document.getElementById('no-controller');
-            if (activeControllers.size === 0 && noControllerMsg) {
-                noControllerMsg.style.display = 'block';
-                
-                // Скрываем секцию, если нет активных контроллеров
-                const controllerSection = document.getElementById('controller-section');
-                if (controllerSection) {
-                    controllerSection.style.display = 'none';
-                }
-            } else if (currentActiveTab === controllerType) {
-                // Если удалили активную вкладку, активируем первую доступную
-                const firstTab = document.querySelector('.controller-tab');
-                if (firstTab) {
-                    switchControllerTab(firstTab.dataset.controllerType);
-                }
+        } else if (currentActiveTab === controllerType) {
+            // Если удалили активную вкладку, активируем первую доступную
+            const firstTab = document.querySelector('[data-controller-type]');
+            if (firstTab) {
+                switchControllerTab(firstTab.dataset.controllerType);
             }
         }
+    }
 
-        function switchControllerTab(controllerType) {
-            if (!activeControllers.has(controllerType)) return;
-            
-            // Обновляем активное состояние вкладок
-            document.querySelectorAll('.controller-tab').forEach(tab => {
-                tab.classList.toggle('active', tab.dataset.controllerType === controllerType);
-            });
-            
-            // Показываем соответствующий фрейм
-            activeControllers.forEach((frameWrapper, type) => {
-                frameWrapper.style.display = type === controllerType ? 'block' : 'none';
-            });
-            
-            currentActiveTab = controllerType;
-        }
-
-        function refreshCurrentTab() {
-            if (!currentActiveTab) return;
-            
-            const frameWrapper = activeControllers.get(currentActiveTab);
-            if (!frameWrapper) return;
-            
-            const frame = frameWrapper.querySelector('iframe');
-            if (frame) {
-                document.getElementById('loading-overlay').classList.remove('hidden');
-                frame.src = frame.src; // Перезагружаем фрейм
-            }
-        }
-
-        // Управление Mininet
-        async function runMininetCommand() {
-            const vmChoice = document.getElementById('vm_choice').value;
-            const command = document.getElementById('mininet_command').value;
-            const controllerIp = document.getElementById('controller_ip').value;
-            const controllerPort = document.getElementById('controller_port').value;
-            
-            showLoading(`Выполнение команды Mininet: ${command}`);
-            
-            try {
-                const formData = new FormData();
-                formData.append('vm_choice', vmChoice);
-                formData.append('command_name', command);
-                formData.append('controller_ip', controllerIp);
-                formData.append('controller_port', controllerPort);
-                
-                const response = await fetch('/run_mininet', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                
-                const result = await response.text();
-                showSuccess(result);
-            } catch (error) {
-                showError(`Ошибка выполнения команды Mininet: ${error.message}`);
-                console.error('Ошибка:', error);
-            }
-        }
-
-        // Управление Scapy
-        async function runScapyScript() {
-            const vmChoice = document.getElementById('vm_choice').value;
-            const scapyScript = document.getElementById('scapy_script').value;
-            
-            if (!scapyScript.trim()) {
-                showError("Пожалуйста, введите Scapy скрипт");
-                return;
-            }
-            
-            showLoading("Выполнение Scapy скрипта...");
-            
-            try {
-                const formData = new FormData();
-                formData.append('vm_choice', vmChoice);
-                formData.append('scapy_script', scapyScript);
-                
-                const response = await fetch('/run_scapy', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                
-                const result = await response.text();
-                showSuccess(result);
-            } catch (error) {
-                showError(`Ошибка выполнения Scapy скрипта: ${error.message}`);
-                console.error('Ошибка:', error);
-            }
-        }
-
-        async function uploadScapyFile() {
-            const fileInput = document.getElementById('scapy_file');
-            const file = fileInput.files[0];
-            
-            if (!file) return;
-            
-            showLoading("Загрузка Scapy файла...");
-            
-            try {
-                const formData = new FormData();
-                formData.append('vm_choice', document.getElementById('vm_choice').value);
-                formData.append('scapy_file', file);
-                
-                const response = await fetch('/upload_scapy', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                
-                const result = await response.text();
-                showSuccess(result);
-            } catch (error) {
-                showError(`Ошибка загрузки файла: ${error.message}`);
-                console.error('Ошибка:', error);
-            }
-        }
-
-        function loadScapyExample(exampleName) {
-            const example = scapyExamples[exampleName];
-            if (example) {
-                document.getElementById('scapy_script').value = example;
-            }
-        }
-
-        // Автоматическое скрытие секций при выборе VM
-        document.getElementById('vm_choice').addEventListener('change', function() {
-            const vmChoice = this.value;
-            
-            // Mininet и Scapy доступны только на VM2
-            const mininetSection = document.querySelector('[onclick="runMininetCommand()"]').closest('.bg-gray-50');
-            const scapySection = document.querySelector('[onclick="runScapyScript()"]').closest('.bg-gray-50');
-            
-            if (vmChoice === 'VM1') {
-                mininetSection.classList.add('opacity-50', 'pointer-events-none');
-                scapySection.classList.add('opacity-50', 'pointer-events-none');
-            } else {
-                mininetSection.classList.remove('opacity-50', 'pointer-events-none');
-                scapySection.classList.remove('opacity-50', 'pointer-events-none');
-            }
+    function switchControllerTab(controllerType) {
+        if (!activeControllers.has(controllerType)) return;
+        
+        // Обновляем активное состояние вкладок
+        document.querySelectorAll('[data-controller-type]').forEach(tab => {
+            const isActive = tab.dataset.controllerType === controllerType;
+            tab.classList.toggle('bg-blue-600', isActive);
+            tab.classList.toggle('bg-gray-200', !isActive);
+            tab.classList.toggle('dark:bg-gray-700', !isActive);
+            tab.classList.toggle('text-white', isActive);
+            tab.classList.toggle('text-gray-700', !isActive);
+            tab.classList.toggle('dark:text-gray-300', !isActive);
         });
-    </script>
+        
+        // Показываем соответствующий фрейм
+        activeControllers.forEach((frameWrapper, type) => {
+            frameWrapper.style.display = type === controllerType ? 'block' : 'none';
+        });
+        
+        currentActiveTab = controllerType;
+    }
+
+    function refreshCurrentTab() {
+        if (!currentActiveTab) return;
+        
+        const frameWrapper = activeControllers.get(currentActiveTab);
+        if (!frameWrapper) return;
+        
+        const frame = frameWrapper.querySelector('iframe');
+        if (frame) {
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            frame.src = frame.src; // Перезагружаем фрейм
+        }
+    }
+
+    // Управление Mininet
+    async function runMininetCommand() {
+        const vmChoice = document.getElementById('vm_choice').value;
+        const command = document.getElementById('mininet_command').value.trim();
+        
+        if (vmChoice === "VM1") {
+            showError("Mininet доступен только на VM2.");
+            return;
+        }
+        
+        if (!command) {
+            showError("Пожалуйста, введите команду Mininet");
+            return;
+        }
+        
+        showLoading(`Выполнение команды Mininet: ${command}`);
+        
+        try {
+            // Здесь должна быть реальная отправка команды на сервер
+            // Это примерная реализация
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Пример успешного ответа
+            const successMessage = `Команда Mininet выполнена:\n${command}\n\nПример вывода:\n*** Creating network\n*** Adding controller\n*** Adding hosts:\nh1 h2 h3 \n*** Adding switches:\ns1 \n*** Adding links:\n(h1, s1) (h2, s1) (h3, s1) \n*** Configuring hosts\nh1 h2 h3 \n*** Starting controller\n*** Starting 1 switches\ns1 \n*** Starting CLI\nmininet>`;
+            showSuccess(successMessage);
+        } catch (error) {
+            showError(`Ошибка выполнения команды Mininet: ${error.message}`);
+            console.error('Ошибка:', error);
+        }
+    }
+
+    async function uploadMininetFile() {
+        const fileInput = document.getElementById('mininet_file');
+        const file = fileInput.files[0];
+        
+        if (!file) return;
+        
+        showLoading("Загрузка файла с командой Mininet...");
+        
+        try {
+            // Здесь должна быть реальная отправка файла на сервер
+            // Это примерная реализация
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Пример успешного ответа
+            const successMessage = `Файл ${file.name} успешно загружен. Содержимое:\n\n${file.name.includes('mininet') ? mininetExamples.simple : 'Неизвестный формат файла'}`;
+            showSuccess(successMessage);
+        } catch (error) {
+            showError(`Ошибка загрузки файла: ${error.message}`);
+            console.error('Ошибка:', error);
+        }
+    }
+
+    function loadMininetExample(exampleName) {
+        const example = mininetExamples[exampleName];
+        if (example) {
+            document.getElementById('mininet_command').value = example;
+        }
+    }
+
+    // Управление Scapy
+    async function runScapyScript() {
+        const vmChoice = document.getElementById('vm_choice').value;
+        const scapyScript = document.getElementById('scapy_script').value;
+        const hostName = document.getElementById('host_name').value;
+        
+        if (!scapyScript.trim()) {
+            showError("Пожалуйста, введите Scapy скрипт");
+            return;
+        }
+        
+        showLoading("Выполнение Scapy скрипта...");
+        
+        try {
+            // Здесь должна быть реальная отправка скрипта на сервер
+            // Это примерная реализация
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Пример успешного ответа
+            let successMessage = `Scapy скрипт выполнен на ${hostName}:\n`;
+            
+            if (scapyScript.includes("ICMP()")) {
+                successMessage += "\nОтправлен ICMP пакет. Пример ответа:\nBegin emission:\n.Finished to send 1 packets.\nReceived 2 packets, got 1 answers, remaining 0 packets";
+            } else if (scapyScript.includes("ARP(")) {
+                successMessage += "\nВыполнен ARP запрос. Пример ответа:\nIP: 192.168.1.1 - MAC: 00:11:22:33:44:55";
+            } else {
+                successMessage += "\nСкрипт выполнен успешно";
+            }
+            
+            showSuccess(successMessage);
+        } catch (error) {
+            showError(`Ошибка выполнения Scapy скрипта: ${error.message}`);
+            console.error('Ошибка:', error);
+        }
+    }
+
+    async function uploadScapyFile() {
+        const fileInput = document.getElementById('scapy_file');
+        const file = fileInput.files[0];
+        
+        if (!file) return;
+        
+        showLoading("Загрузка Scapy файла...");
+        
+        try {
+            // Здесь должна быть реальная отправка файла на сервер
+            // Это примерная реализация
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Пример успешного ответа
+            const successMessage = `Файл ${file.name} успешно загружен. Содержимое:\n\n${file.name.includes('scapy') ? scapyExamples.ping : 'Неизвестный формат файла'}`;
+            showSuccess(successMessage);
+        } catch (error) {
+            showError(`Ошибка загрузки файла: ${error.message}`);
+            console.error('Ошибка:', error);
+        }
+    }
+
+    function loadScapyExample(exampleName) {
+        const example = scapyExamples[exampleName];
+        if (example) {
+            document.getElementById('scapy_script').value = example;
+        }
+    }
+
+     async function sendCommand(command) {
+            const outputDiv = document.getElementById('output');
+            outputDiv.innerHTML = 'Выполняю команду...';
+            
+            try {
+                const response = await fetch('/api/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ command: command })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                outputDiv.innerHTML = data.success 
+                    ? `<span class="success">Успешно:</span>\n${data.output || 'Нет вывода'}` 
+                    : `<span class="error">Ошибка:</span>\n${data.error || 'Неизвестная ошибка'}`;
+            } catch (error) {
+                outputDiv.innerHTML = `<span class="error">Ошибка:</span> ${error.message}`;
+            }
+        }
+
+        function sendCustomCommand() {
+            const cmdInput = document.getElementById("customCmd");
+            const cmd = cmdInput.value.trim();
+            if (cmd) {
+                sendCommand(cmd);
+                cmdInput.value = '';
+            }
+        }
+
+
+    // Автоматическое скрытие секций при выборе VM
+    document.getElementById('vm_choice').addEventListener('change', function() {
+        const vmChoice = this.value;
+        
+        // Mininet и Scapy доступны только на VM2
+        const mininetCard = document.querySelector('[onclick="runMininetCommand()"]').closest('.controller-card');
+        const scapyCard = document.querySelector('[onclick="runScapyScript()"]').closest('.controller-card');
+        
+        if (vmChoice === 'VM1') {
+            mininetCard.classList.add('opacity-50', 'pointer-events-none');
+            scapyCard.classList.add('opacity-50', 'pointer-events-none');
+        } else {
+            mininetCard.classList.remove('opacity-50', 'pointer-events-none');
+            scapyCard.classList.remove('opacity-50', 'pointer-events-none');
+        }
+    });
+
+    // Dark mode toggle
+    const darkToggle = document.getElementById("darkModeToggle");
+    const darkToggleMobile = document.getElementById("darkModeToggleMobile");
+
+    function setTheme(dark) {
+        document.documentElement.classList.toggle("dark", dark);
+        localStorage.setItem("theme", dark ? "dark" : "light");
+
+        // Перемещаем "ползунок"
+        const switches = [darkToggle, darkToggleMobile];
+        switches.forEach(sw => {
+            const knob = sw?.querySelector("div");
+            knob?.classList.toggle("translate-x-full", dark);
+        });
+    }
+
+    // Загружаем сохранённую тему
+    const savedTheme = localStorage.getItem("theme");
+    setTheme(savedTheme === "dark");
+
+    // Переключение темы по нажатию
+    darkToggle?.addEventListener("click", () => {
+        setTheme(!document.documentElement.classList.contains("dark"));
+    });
+    darkToggleMobile?.addEventListener("click", () => {
+        setTheme(!document.documentElement.classList.contains("dark"));
+    });
+
+    // Mobile menu toggle
+    const mobileBtn = document.getElementById("mobile-menu-button");
+    const mobileMenu = document.getElementById("mobile-menu");
+    let isMobileOpen = false;
+
+    mobileBtn?.addEventListener("click", () => {
+        isMobileOpen = !isMobileOpen;
+        mobileMenu.classList.toggle("pointer-events-none", !isMobileOpen);
+        mobileMenu.classList.toggle("opacity-0", !isMobileOpen);
+        mobileMenu.classList.toggle("scale-y-0", !isMobileOpen);
+        mobileMenu.classList.toggle("scale-y-100", isMobileOpen);
+    });
+
+    
+</script>
 </body>
 </html>
