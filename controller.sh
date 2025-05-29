@@ -6,7 +6,7 @@ sudo apt upgrade -y
 
 # Установка необходимых зависимостей
 echo "Установка зависимостей..."
-sudo apt install -y wget tar openjdk-8-jdk curl unzip python3 python3-pip
+sudo apt install -y wget tar openjdk-8-jdk curl unzip python3 python3-pip ttyd
 
 # Настройка JAVA_HOME
 echo "Настройка JAVA_HOME..."
