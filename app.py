@@ -1,13 +1,16 @@
-from fastapi import FastAPI, Request, Form, UploadFile, File
+from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import asyncssh
-import io
-from typing import Optional
 import asyncio
 import os
+from pydantic import BaseModel
+import shutil
+import subprocess
 
 app = FastAPI()
+
+
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -15,20 +18,20 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Templates
 templates = Jinja2Templates(directory="templates")
 
-# SSH Config
+# SSH Configuration
 private_key1_path = os.path.join('.vagrant', 'machines', 'sdn-controller', 'virtualbox', 'private_key')
 private_key2_path = os.path.join('.vagrant', 'machines', 'mininet-host', 'virtualbox', 'private_key')
 
-
+# Load private keys
 try:
     with open(private_key1_path, 'r') as file:
         private_key_vm1_str = file.read()
     print("Приватный ключ VM1 успешно загружен")
 except FileNotFoundError:
-    print(f"Ошибка: ключа нету по пути: {private_key1_path}")
+    print(f"Ошибка: файл приватного ключа VM1 не найден по пути: {private_key1_path}")
     private_key_vm1_str = None
 except Exception as e:
-    print(f"кака-то ошибка: {str(e)}")
+    print(f"Другая ошибка при чтении файла VM1: {str(e)}")
     private_key_vm1_str = None
     
 try:
@@ -36,18 +39,19 @@ try:
         private_key_vm2_str = file.read()
     print("Приватный ключ VM2 успешно загружен")
 except FileNotFoundError:
-    print(f"Ошибка: ключа нету по пути: {private_key2_path}")
+    print(f"Ошибка: файл приватного ключа VM2 не найден по пути: {private_key2_path}")
     private_key_vm2_str = None
 except Exception as e:
-    print(f"кака-то ошибка: {str(e)}")
+    print(f"Другая ошибка при чтении файла VM2: {str(e)}")
     private_key_vm2_str = None
 
+# VM Configuration
 vm1_ip = "192.168.56.10"
 vm1_user = "vagrant"
 vm2_ip = "192.168.56.20"
 vm2_user = "vagrant"
 
-async def ssh_command(vm_ip, vm_user, private_key_str, command, timeout=10):
+async def ssh_command(vm_ip, vm_user, private_key_str, command, timeout=30):
     try:
         private_key = asyncssh.import_private_key(private_key_str.strip())
         async with asyncssh.connect(
@@ -72,8 +76,8 @@ async def start_controller(
     controller_type: str = Form(...),
 ):
     commands = {
-        "Opendaylight": "cd /opt/opendaylight/distribution-karaf-0.4.0-Beryllium && ./bin/start",
-        "ONOS": "cd /opt/onos/onos-1.15.0 && ./bin/onos-service start",
+        "Opendaylight": "cd /opt/opendaylight/distribution-karaf-0.4.0-Beryllium && sudo ./bin/start",
+        "ONOS": "cd /opt/onos/onos-2.0.0 && ./bin/onos-service start",
         "Ryu": "ryu-manager --verbose ryu.app.simple_switch_13",
     }
     
@@ -95,7 +99,7 @@ async def stop_controller(
 ):
     commands = {
         "Opendaylight": "cd /opt/opendaylight/distribution-karaf-0.4.0-Beryllium && ./bin/stop",
-        "ONOS": "cd /opt/onos/onos-1.15.0 && ./bin/onos-service stop",
+        "ONOS": "cd /opt/onos/onos-2.0.0 && ./bin/onos-service stop",
         "Ryu": "pkill -f ryu-manager",
     }
     
@@ -115,6 +119,49 @@ async def stop_controller(
         return result
     else:
         return "Неверная VM."
+
+@app.post("/send_mininet_command")
+async def send_mininet_command(
+    command: str = Form(..., description="Команда для отправки в Mininet (например, pingall, h1 ping h2 и т.д.)"),
+    wait_for_output: bool = Form(False, description="Ожидать вывод команды"),
+    timeout: int = Form(10, description="Таймаут ожидания вывода в секундах"),
+):
+    """
+    Отправляет команду в запущенную сессию Mininet через screen.
+    """
+    # Проверяем, есть ли активная screen-сессия
+    check_cmd = "sudo screen -ls | grep mininet_session"
+    try:
+        session_status = await ssh_command(vm2_ip, vm2_user, private_key_vm2_str, check_cmd)
+    except Exception as e:
+        return f"Ошибка при проверке сессий: {str(e)}"
+    
+    if "mininet_session" not in session_status:
+        return "Нет активной сессии Mininet. Сначала запустите Mininet через /run_mininet."
+    
+    # Подготавливаем команду для отправки
+    # Экранируем кавычки и специальные символы
+    escaped_command = command.replace('"', '\\"').replace('$', '\\$')
+    send_cmd = f'sudo screen -S mininet_session -X stuff "{escaped_command}\n"'
+    
+    try:
+        # Отправляем команду
+        await ssh_command(vm2_ip, vm2_user, private_key_vm2_str, send_cmd)
+        
+        if wait_for_output:
+            # Если нужно получить вывод, читаем из лога screen
+            output_cmd = f"sudo tail -n 20 /var/log/screen/mininet_session.log"
+            output = await ssh_command(vm2_ip, vm2_user, private_key_vm2_str, output_cmd, timeout=timeout)
+            return f"Команда '{command}' отправлена. Вывод:\n{output}"
+        else:
+            return f"Команда '{command}' успешно отправлена в сессию Mininet."
+            
+    except asyncio.TimeoutError:
+        return "Команда отправлена, но превышен таймаут ожидания вывода."
+    except Exception as e:
+        return f"Ошибка при отправке команды: {str(e)}"
+    
+
 
 @app.post("/run_mininet")
 async def run_mininet(
@@ -185,18 +232,18 @@ async def run_mininet(
 async def run_scapy(
     vm_choice: str = Form(...),
     scapy_script: str = Form(...),
+    host_name: str = Form(...),
 ):
     if vm_choice == "VM1":
         return "Scapy скрипты можно выполнять только на VM2."
-    
-    # Сохраняем скрипт во временный файл и выполняем
+
     command = f"""
-    cat > /tmp/scapy_script.py << 'EOF'
+cat > /tmp/scapy_script.py << 'EOF'
 {scapy_script}
 EOF
-   sudo python3 /tmp/scapy_script.py
-    """
-    
+PID=$(pgrep -f "bash.*{host_name}")
+sudo mnexec -a $PID python3 /tmp/scapy_script.py
+"""
     return await ssh_command(vm2_ip, vm2_user, private_key_vm2_str, command)
 
 @app.post("/upload_scapy")
@@ -218,3 +265,32 @@ EOF
     """
     
     return await ssh_command(vm2_ip, vm2_user, private_key_vm2_str, command)
+
+
+
+VAGRANT_DIR = "D:\\sdn_lab"  # Укажите вашу директорию с Vagrantfile
+class CommandRequest(BaseModel):
+    command: str
+
+@app.post("/api/execute")
+async def execute_command(request: CommandRequest):  # ← Используем модель
+    try:
+        result = subprocess.run(
+            f"vagrant {request.command}",  # ← Доступ через request.command
+            shell=True,
+            cwd="D:\\sdn_lab",
+            text=True,
+            capture_output=True
+        )
+        return {
+            "success": True,
+            "output": result.stdout,
+            "error": result.stderr
+        }
+    except subprocess.CalledProcessError as e:
+        return {
+            "success": False,
+            "output": e.stdout,
+            "error": e.stderr
+        }
+
