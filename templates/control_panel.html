@@ -120,6 +120,16 @@
             height: 100%;
             cursor: pointer;
         }
+
+        #ttyd-terminal {
+            background-color: #1e1e1e;
+            border-radius: 0.5rem;
+            min-height: 400px;
+        }
+
+        .dark #ttyd-terminal {
+            border-color: #333;
+        }
     </style>
 </head>
 <body class="dark:bg-dark dark:text-gray-200">
@@ -181,10 +191,10 @@
     </div>
 
     <div class="grid grid-cols-2 gap-4 mb-4">
-        <button onclick="sendCommand('up mininet-host --no-provision')" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">Vagrant Up</button>
-        <button onclick="sendCommand('halt')" class="bg-yellow-600 hover:bg-yellow-700 text-white py-2 px-4 rounded">Vagrant Halt</button>
-        <button onclick="sendCommand('status')" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">Vagrant Status</button>
-        <button onclick="sendCommand('destroy -f')" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded">Vagrant Destroy</button>
+        <button onclick="sendCommand('up mininet-host --no-provision')" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">Запуск VM</button>
+        <button onclick="sendCommand('halt')" class="bg-yellow-600 hover:bg-yellow-700 text-white py-2 px-4 rounded">Остановка VM</button>
+        <button onclick="sendCommand('status')" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">Статус VM</button>
+        <button onclick="sendCommand('destroy -f')" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded">Удаление VM</button>
     </div>
 
     <div class="mb-4">
@@ -195,12 +205,7 @@
         </div>
     </div>
 
-    <div class="mb-2">
-        <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Результат:</h4>
-        <div id="output" class="bg-gray-100 dark:bg-zinc-600 text-sm p-3 rounded text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-            Нажмите кнопку для выполнения команды...
-        </div>
-    </div>
+    
 </div>
 
         <!-- VM Selection -->
@@ -216,6 +221,34 @@
                 </div>
             </div>
         </div>
+
+
+        <div class="controller-card dark-bg rounded-lg p-6 mb-6">
+    <div class="flex items-center mb-4">
+        <div class="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mr-3">
+            <i class="fas fa-terminal text-gray-700 dark:text-gray-300"></i>
+        </div>
+        <h3 class="text-xl font-bold dark:text-white">Веб-терминал VM2</h3>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mb-4">
+        <button onclick="startTtydTerminal()" class="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded">
+            <i class="fas fa-play mr-2"></i> Запустить
+        </button>
+        <button onclick="stopTtydTerminal()" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded">
+            <i class="fas fa-stop mr-2"></i> Остановить
+        </button>
+    </div>
+
+    <div id="terminal-frame-container" class="hidden">
+        <iframe id="ttyd-terminal" class="w-full h-96 border border-gray-300 dark:border-gray-600 rounded-md" 
+                sandbox="allow-same-origin allow-scripts allow-popups allow-forms">
+        </iframe>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            Терминал VM2. Порт: <span id="terminal-port">8080</span>
+        </p>
+    </div>
+</div>
         
         <!-- Controller Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -316,7 +349,7 @@
                         <i class="fas fa-wifi mr-1.5"></i> Ping
                     </button>
                     <button onclick="loadScapyExample('arp')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
-                        <i class="fas fa-network-wired mr-1.5"></i> ARP
+                        <i class="fas fa-network-wired mr-1.5"></i> Flood
                     </button>
                     <button onclick="loadScapyExample('flowtable_dos')" class="example-button px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 rounded flex items-center">
                         <i class="fas fa-search mr-1.5"></i> Port Scan
@@ -861,7 +894,59 @@
             }
         }
 
+        let terminalPort = 8080;
 
+async function startTtydTerminal() {
+    showLoading("Запуск веб-терминала на VM2...");
+    
+    try {
+        // Отправляем запрос на сервер для запуска ttyd
+        const response = await fetch('/start_ttyd', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `port=${terminalPort}&command=bash`
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(result.message);
+            // Показываем iframe с терминалом
+            document.getElementById('terminal-frame-container').classList.remove('hidden');
+            document.getElementById('ttyd-terminal').src = result.url;
+            document.getElementById('terminal-port').textContent = terminalPort;
+        } else {
+            showError(result.message || "Не удалось запустить терминал");
+        }
+    } catch (error) {
+        showError(`Ошибка: ${error.message}`);
+        console.error('Ошибка запуска терминала:', error);
+    }
+}
+
+async function stopTtydTerminal() {
+    showLoading("Остановка веб-терминала...");
+    
+    try {
+        // Отправляем команду на убийство процесса ttyd
+        const killCmd = `sudo pkill -f 'ttyd.*${terminalPort}' || true`;
+        const result = await sshCommand(vm2_ip, vm2_user, private_key_vm2_str, killCmd);
+        
+        showSuccess("Веб-терминал остановлен");
+        document.getElementById('terminal-frame-container').classList.add('hidden');
+        document.getElementById('ttyd-terminal').src = '';
+    } catch (error) {
+        showError(`Ошибка остановки терминала: ${error}`);
+    }
+}
+
+// Функция для изменения порта (опционально)
+function changeTerminalPort(newPort) {
+    terminalPort = newPort;
+    document.getElementById('terminal-port').textContent = newPort;
+}
     // Автоматическое скрытие секций при выборе VM
     document.getElementById('vm_choice').addEventListener('change', function() {
         const vmChoice = this.value;
