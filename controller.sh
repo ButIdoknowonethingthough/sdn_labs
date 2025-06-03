@@ -57,7 +57,7 @@ sudo chmod -R 755 /opt/onos
 
 # Добавление переменных окружения для ONOS
 echo "export ONOS_ROOT=/opt/onos" >> ~/.bashrc
-echo "export ONOS_APPS=drivers,openflow,proxy,roadm,fwd" >> ~/.bashrc
+echo "export ONOS_APPS=drivers,openflow,proxyarp,roadm,fwd,gui2" >> ~/.bashrc
 source ~/.bashrc
 
 # Установка Ruy (Python-фреймворк для SDN)
