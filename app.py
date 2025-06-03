@@ -85,7 +85,7 @@ async def start_controller(
 ):
     commands = {
         "Opendaylight": "cd /opt/opendaylight/distribution-karaf-0.4.0-Beryllium && sudo ./bin/karaf",
-        "ONOS": "cd /opt/onos/onos-2.0.0 && ./bin/onos-service start",
+        "ONOS": "cd /opt/onos/onos-1.15.0 && ./bin/onos-service start",
         "Ryu": "ryu-manager --verbose ryu.app.simple_switch_13",
     }
     
@@ -107,7 +107,7 @@ async def stop_controller(
 ):
     commands = {
         "Opendaylight": "cd /opt/opendaylight/distribution-karaf-0.4.0-Beryllium && ./bin/stop",
-        "ONOS": "cd /opt/onos/onos-2.0.0 && ./bin/onos-service stop",
+        "ONOS": "cd /opt/onos/onos-1.15.0 && ./bin/onos-service stop",
         "Ryu": "pkill -f ryu-manager",
     }
     
