@@ -40,6 +40,7 @@ feature:install odl-restconf
 feature:install odl-l2switch-switch
 feature:install odl-mdsal-apidocs
 feature:install odl-dlux-all
+feature:install odl-openflowplugin-all
 logout
 EOF
 
