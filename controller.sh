@@ -8,6 +8,15 @@ sudo apt upgrade -y
 echo "Установка зависимостей..."
 sudo apt install -y wget tar openjdk-8-jdk curl unzip python3 python3-pip ttyd
 
+echo "Установка Python 3.8..."
+sudo add-apt-repository ppa:deadsnakes/ppa -y
+sudo apt update
+sudo apt install -y python3.8 python3.8-distutils
+
+# Установка pip для Python 3.8
+curl https://bootstrap.pypa.io/get-pip.py  -o get-pip.py
+sudo python3.8 get-pip.py
+rm get-pip.py
 # Настройка JAVA_HOME
 echo "Настройка JAVA_HOME..."
 java_home_path=$(readlink -f /usr/bin/java | sed 's:bin/java::')
